@@ -2,5 +2,5 @@
 This project define a simple shortwave all mode and general coverage Software Defined Radio receiver.
 
 
-# NOTE:
-# This Project is Work in Progress (03.12.2020)
+NOTE:
+This Project is Work in Progress (03.12.2020)
