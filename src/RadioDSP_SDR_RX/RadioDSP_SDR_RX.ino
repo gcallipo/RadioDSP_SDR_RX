@@ -154,6 +154,7 @@ int 	maxTS = 6;
 
 uint16_t WaterfallData[MAX_WATERFALL][512] = {1};
 uint16_t SpectrumView[512] = {1};
+uint16_t SpectrumViewOld[512] = {1};
 
 // Frame buffer DMA memory for ILI9341_t3n display
 DMAMEM uint16_t fb1[320 * 240];
@@ -186,8 +187,8 @@ void initVfo()
   si5351.init(SI5351_CRYSTAL_LOAD_8PF, 0, 0);
   si5351.set_correction(33000, SI5351_PLL_INPUT_XO);
   si5351.set_pll(SI5351_PLL_FIXED, SI5351_PLLA);
-  //si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_2MA);
-  si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_4MA);
+  si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_2MA);
+  //si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_4MA);
   si5351.set_freq(vfoFreq * 400ULL , SI5351_CLK0); //this generates 4 x your input freq
   //si5351.set_freq(vfoFreq *100ULL , SI5351_CLK0); //this generates 1 x your input freq
 }
@@ -964,6 +965,90 @@ void UpdateSpectrum()
  
 }
 
+
+void UpdateSpectrum_smooting()
+{
+
+  int bar = 0;
+  int xPos = 0;
+  int low = 0;
+  int iDiscard = 0;
+  float specVal = 0.0; 
+  int scale=5;
+  float avg = 0.0;
+  float LPFcoeff = 0.8; 
+    
+  for (int x = 0; x < 512; x++){
+   // Frequency Smoothing 
+   // Moving window - weighted average of 5 points of the spectrum to smooth spectrum in the frequency domain
+   // Weights:  x: 50% , x-1/x+1: 36%, x+2/x-2: 14% 
+   if ((x > 1) && (x < 510))
+   {       
+            // Others.. 
+            avg = FFT.output[x]*0.7 + FFT.output[x-1]*0.3 + 
+                  FFT.output[x-2]*0.15 + FFT.output[x+1]*0.3 + 
+                  FFT.output[x+2]*0.15;     
+   }else{
+         avg =  FFT.output[x];
+   }
+
+   // Time Smoothing
+   // low pass filtering of the spectrum pixels to smooth/slow down spectrum in the time domain
+   // experimental LPF for spectrum:  
+   SpectrumView[x] = LPFcoeff * 2 * sqrt (abs(avg)*scale) + (1 - LPFcoeff) * SpectrumViewOld[x];
+  
+   // Update the value for the next step ...
+   SpectrumViewOld[x]= SpectrumView[x];
+  }
+   
+  // Spectrum
+  for (int x = 0; x <= (127-iDiscard); x++)
+  {
+    WaterfallData[0][xPos] = abs(SpectrumView[x*2]);
+    bar = WaterfallData[0][xPos];
+    if (bar > 80)
+      bar = 80;
+    tft.drawFastVLine(2 + (xPos*2), 138 - bar, bar, ILI9341_GREEN); //draw green bar
+    tft.drawFastVLine(2 + (xPos*2), 38, 100 - bar, ILI9341_BLACK);  //finish off with black to the top of the screen
+    xPos++;
+  }
+
+  // Evaluate the medium signal data for the carrier
+  for(int m = 75; m<=85; m++)  { specVal = specVal+ SpectrumView[m]; }
+  displayPeak(abs(specVal/10));
+
+  // Waterfall
+  for (int row = MAX_WATERFALL-1; row >= 0; row--)
+    for (int col = 0; col <= (127-iDiscard); col++)
+    {
+      WaterfallData[row][col] = WaterfallData[row - 1][col];
+
+      if (WaterfallData[row][col] >= low + 75)
+        tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_RED);
+
+      else if ((WaterfallData[row][col] >= low + 50) && (WaterfallData[row][col] < low + 75))
+        tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_MAGENTA);
+
+      else if ((WaterfallData[row][col] >= low + 30) && (WaterfallData[row][col] < low + 50))
+        tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_YELLOW);
+
+      else if ((WaterfallData[row][col] >= low + 20) && (WaterfallData[row][col] < low + 30))
+        tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_BLUE);
+
+      else if (WaterfallData[row][col] < low + 20)
+        tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_BLACK);
+    }
+
+  // Display the carrier Tunig line
+  tft.setFont(Arial_9_Bold);
+  tft.setCursor(72, 45);
+  tft.setTextColor(ILI9341_BLACK, ILI9341_BLUE);
+  tft.print("[RX]");
+  tft.drawFastVLine(72, 50, 90, ILI9341_RED); //draw green bar
+  tft.drawFastVLine(100, 50, 90, ILI9341_RED); //draw green bar
+ 
+}
+
 //************************************************************************
 // 			Evaluate value of Smeter taking some vales of rc signal bins
 //************************************************************************
@@ -1059,6 +1144,8 @@ void setup()
   
   // Place the enable as first operation ...
   codec.enable();
+  //codec.adcHighPassFilterDisable();
+  codec.adcHighPassFilterEnable();
   
   codec.inputSelect(AUDIO_INPUT_LINEIN);
   codec.volume(0.8);
@@ -1090,7 +1177,8 @@ void loop()
     timeSpc = millis();
     if ((timeSpc - lastTimeSpc) > intervalSpc){
       if (FFT.available()) { 
-        UpdateSpectrum();
+        UpdateSpectrum_smooting();
+        //UpdateSpectrum();
       } 
       lastTimeSpc = timeSpc;
     }
