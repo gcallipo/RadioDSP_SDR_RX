@@ -101,18 +101,26 @@ AudioSDRpreProcessor   preProcessor;
 AudioSDR               SDR;
 AudioOutputI2S         audio_out;
 AudioControlSGTL5000   codec;
-AudioAnalyzeFFT256IQ       FFT;
+AudioAnalyzeFFT256IQ   FFT;
+AudioAnalyzeFFT1024     AudioFFT;
+AudioFilterBiquad      biquad1;
+AudioFilterBiquad      biquad2;
 
 //************************************************************************
 // Audio Block connections
 AudioConnection c1(IQinput, 0, preProcessor, 0);
 AudioConnection c2(IQinput, 1, preProcessor, 1);
 
-AudioConnection c2c(IQinput, 0, FFT, 0);  
-AudioConnection c2d(IQinput, 1, FFT, 1);  
+AudioConnection c2f1(IQinput, 0, biquad1, 0);  
+AudioConnection c2f2(IQinput, 1, biquad2, 0);  
+
+AudioConnection c2f11(biquad1, 0, FFT, 0);  
+AudioConnection c2f22(biquad2, 0, FFT, 1);  
 
 AudioConnection c3(preProcessor, 0,  SDR, 0);
 AudioConnection c4(preProcessor, 1,  SDR, 1);
+
+AudioConnection c2f4a(SDR, 0, AudioFFT, 0);  
 
 AudioConnection c5(SDR, 0, audio_out, 0);
 AudioConnection c6(SDR, 1, audio_out, 1);
@@ -148,6 +156,7 @@ int 	fndx = 2; //audio2700 - 2.4 kHz
 int 	nrndx = 0; //NR disabled
 int 	andx = 2; //Agc medium
 int 	lock = 0;
+int   nscope = 1; // 0 = Panadapter - 1 = Audioscope
 
 int 	minTS = 1;
 int 	maxTS = 6;
@@ -313,7 +322,7 @@ void checkCmd()
           }
         case L3_SCOPE_AGC:
           {
-            //tuningStep();
+            setScopeMode();
             break;
           }
       }
@@ -590,6 +599,34 @@ void setNRMode()
    nrndx= nrndx+1;
   }
   showNRMode();
+  delay(200);
+}
+
+//************************************************************************
+//       Change Scope Mode
+//************************************************************************
+void setScopeMode()
+{
+  if(nscope==0)
+  { 
+   newNR= "Panad";
+  }
+  if(nscope==1)
+  {
+   newNR= "Audio";
+  }
+  if(nscope==1)
+  {
+    nscope=0;
+  }
+  else
+  {
+   nscope= nscope+1;
+  }
+  // Clean scope zone
+  tft.fillRect(0, 60, 260, 160, ILI9341_BLACK );
+
+  //showScopeMode();
   delay(200);
 }
 
@@ -897,99 +934,67 @@ void showFreq()
 }
 
 //************************************************************************
-// 			Show full 44KHz wide signal spectrum & Wwaterfall
-//************************************************************************
-void UpdateSpectrum()
+/*
+void Update_AudioSpectrum()
 {
-
   int bar = 0;
   int xPos = 0;
-  int low = 0;
-  int iDiscard = 5;
-  int16_t specVal = 0; 
-  
-  for (int i = 0; i < (127-iDiscard); i++)
-  {  
-    SpectrumView[i] = FFT.output[i];
-  }
-  for (int j = 127-iDiscard; j < (512-(2*iDiscard)); j++)
-  {  
-    SpectrumView[j] = FFT.output[j+(2*iDiscard)];
-  }
+  int low = 5;
 
   // Spectrum
-  for (int x = 0; x <= (127-iDiscard); x++)
+  for (int x = 0; x <= 60; x++)
   {
-    WaterfallData[0][xPos] = abs(SpectrumView[x*2]);
-    bar = WaterfallData[0][xPos];
-    if (bar > 80)
-      bar = 80;
-    tft.drawFastVLine(2 + (xPos*2), 138 - bar, bar, ILI9341_GREEN); //draw green bar
-    tft.drawFastVLine(2 + (xPos*2), 38, 100 - bar, ILI9341_BLACK);  //finish off with black to the top of the screen
+    bar = abs(AudioFFT.output[x]*5);
+    if (bar > 80) bar = 80;
+    tft.drawFastVLine(32 + (xPos*3), 138 - bar, bar, ILI9341_ORANGE); //draw green bar
+    tft.drawFastVLine(32 + (xPos*3), 38, 100 - bar, ILI9341_BLACK);  //finish off with black to the top of the screen
     xPos++;
   }
+}
+*/
 
-  // Evaluate the medium signal data for the carrier
-  for(int m = 70; m<=90; m++)  { specVal = specVal+ SpectrumView[m]; }
-  displayPeak(abs(specVal/20));
+void Update_AudioSpectrum()
+{
+  int bar = 0;
+  int xPos = 0;
+  int low = 5;
 
-  // Waterfall
-  for (int row = MAX_WATERFALL-1; row >= 0; row--)
-    for (int col = 0; col <= (127-iDiscard); col++)
-    {
-      WaterfallData[row][col] = WaterfallData[row - 1][col];
-
-      if (WaterfallData[row][col] >= low + 75)
-        tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_RED);
-
-      else if ((WaterfallData[row][col] >= low + 50) && (WaterfallData[row][col] < low + 75))
-        tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_MAGENTA);
-
-      else if ((WaterfallData[row][col] >= low + 30) && (WaterfallData[row][col] < low + 50))
-        tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_YELLOW);
-
-      else if ((WaterfallData[row][col] >= low + 20) && (WaterfallData[row][col] < low + 30))
-        tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_BLUE);
-
-      else if (WaterfallData[row][col] < low + 20)
-        tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_BLACK);
-    }
-
-  // Display the carrier Tunig line
-  tft.setFont(Arial_9_Bold);
-  tft.setCursor(72, 45);
-  tft.setTextColor(ILI9341_BLACK, ILI9341_BLUE);
-  tft.print("[RX]");
-  tft.drawFastVLine(72, 50, 90, ILI9341_RED); //draw green bar
-  tft.drawFastVLine(100, 50, 90, ILI9341_RED); //draw green bar
- 
+  // Spectrum
+  for (int x = 0; x <= 120; x++)
+  {
+    bar = abs(AudioFFT.output[x]*5);
+    if (bar > 70) bar = 70;
+    tft.drawFastVLine(32 + (xPos), 170 - bar, bar, ILI9341_ORANGE); //draw green bar
+    tft.drawFastVLine(32 + (xPos), 70, 100 - bar, ILI9341_BLACK);  //finish off with black to the top of the screen
+    xPos++;
+  }
 }
 
 
-void UpdateSpectrum_smooting()
+//************************************************************************
+// 			Show full 44KHz wide signal spectrum & Wwaterfall
+//************************************************************************
+void Update_Panadapter()
 {
-
   int bar = 0;
   int xPos = 0;
   int low = 0;
-  int iDiscard = 0;
-  float specVal = 0.0; 
   int scale=5;
   float avg = 0.0;
-  float LPFcoeff = 0.8; 
-    
-  for (int x = 0; x < 512; x++){
+  float LPFcoeff = 0.7; 
+
+  // Pre process spectrum data ...
+  for (int x = 0; x < 256; x++){
    // Frequency Smoothing 
    // Moving window - weighted average of 5 points of the spectrum to smooth spectrum in the frequency domain
    // Weights:  x: 50% , x-1/x+1: 36%, x+2/x-2: 14% 
-   if ((x > 1) && (x < 510))
+   if ((x > 1) && (x < 254))
    {       
-            // Others.. 
-            avg = FFT.output[x]*0.7 + FFT.output[x-1]*0.3 + 
+       avg = FFT.output[x]*0.7 + FFT.output[x-1]*0.3 + 
                   FFT.output[x-2]*0.15 + FFT.output[x+1]*0.3 + 
-                  FFT.output[x+2]*0.15;     
+                  FFT.output[x+2]*0.15;         
    }else{
-         avg =  FFT.output[x];
+       avg =  FFT.output[x];
    }
 
    // Time Smoothing
@@ -1000,58 +1005,66 @@ void UpdateSpectrum_smooting()
    // Update the value for the next step ...
    SpectrumViewOld[x]= SpectrumView[x];
   }
-   
-  // Spectrum
-  for (int x = 0; x <= (127-iDiscard); x++)
-  {
-    WaterfallData[0][xPos] = abs(SpectrumView[x*2]);
-    bar = WaterfallData[0][xPos];
-    if (bar > 80)
-      bar = 80;
-    tft.drawFastVLine(2 + (xPos*2), 138 - bar, bar, ILI9341_GREEN); //draw green bar
-    tft.drawFastVLine(2 + (xPos*2), 38, 100 - bar, ILI9341_BLACK);  //finish off with black to the top of the screen
-    xPos++;
-  }
-
-  // Evaluate the medium signal data for the carrier
-  for(int m = 75; m<=85; m++)  { specVal = specVal+ SpectrumView[m]; }
-  displayPeak(abs(specVal/10));
-
-  // Waterfall
-  for (int row = MAX_WATERFALL-1; row >= 0; row--)
-    for (int col = 0; col <= (127-iDiscard); col++)
+    // Spectrum
+    for (int x = 0; x <= 127; x++)
     {
-      WaterfallData[row][col] = WaterfallData[row - 1][col];
-
-      if (WaterfallData[row][col] >= low + 75)
-        tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_RED);
-
-      else if ((WaterfallData[row][col] >= low + 50) && (WaterfallData[row][col] < low + 75))
-        tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_MAGENTA);
-
-      else if ((WaterfallData[row][col] >= low + 30) && (WaterfallData[row][col] < low + 50))
-        tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_YELLOW);
-
-      else if ((WaterfallData[row][col] >= low + 20) && (WaterfallData[row][col] < low + 30))
-        tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_BLUE);
-
-      else if (WaterfallData[row][col] < low + 20)
-        tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_BLACK);
+      WaterfallData[0][xPos] = abs(SpectrumView[x*2]);
+      bar = WaterfallData[0][xPos];
+      if (bar > 80)
+        bar = 80;
+      tft.drawFastVLine(2 + (xPos*2), 138 - bar, bar, ILI9341_GREEN); //draw green bar
+      tft.drawFastVLine(2 + (xPos*2), 38, 100 - bar, ILI9341_BLACK);  //finish off with black to the top of the screen
+      xPos++;
     }
+  
+    // Waterfall
+    for (int row = MAX_WATERFALL-1; row >= 0; row--)
+      for (int col = 0; col <= 127; col++)
+      {
+        WaterfallData[row][col] = WaterfallData[row - 1][col];
+  
+        if (WaterfallData[row][col] >= low + 75)
+          tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_RED);
+  
+        else if ((WaterfallData[row][col] >= low + 60) && (WaterfallData[row][col] < low + 75))
+          tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_MAGENTA);
+          
+        else if ((WaterfallData[row][col] >= low + 45) && (WaterfallData[row][col] < low + 60))
+          tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_ORANGE);  
+  
+        else if ((WaterfallData[row][col] >= low + 30) && (WaterfallData[row][col] < low + 45))
+          tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_YELLOW);
+  
+        else if ((WaterfallData[row][col] >= low + 20) && (WaterfallData[row][col] < low + 30))
+          tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_BLUE);
+  
+        else if (WaterfallData[row][col] < low + 20)
+          tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_BLACK);
+     }
+  
+      // Display the carrier Tunig line
+      tft.drawFastVLine(72, 50, 90, ILI9341_RED); //draw green bar
+      tft.drawFastVLine(100, 50, 90, ILI9341_RED); //draw green bar
+//      tft.setFont(Arial_9_Bold);
+//      tft.setCursor(72, 45);
+//      tft.setTextColor(ILI9341_BLACK, ILI9341_BLUE);
+//      tft.print("[RX]");
 
-  // Display the carrier Tunig line
-  tft.setFont(Arial_9_Bold);
-  tft.setCursor(72, 45);
-  tft.setTextColor(ILI9341_BLACK, ILI9341_BLUE);
-  tft.print("[RX]");
-  tft.drawFastVLine(72, 50, 90, ILI9341_RED); //draw green bar
-  tft.drawFastVLine(100, 50, 90, ILI9341_RED); //draw green bar
- 
 }
 
 //************************************************************************
 // 			Evaluate value of Smeter taking some vales of rc signal bins
 //************************************************************************
+void Update_smeter(){
+  
+  float specVal = 0.0; 
+  
+  // Evaluate the medium signal data for the carrier
+  for(int m = 75; m<=85; m++)  { specVal = specVal+FFT.output[m]; }
+  displayPeak(abs(specVal/5));
+
+}
+
 void displayPeak(float s_sample) {
   
    float uv, dbuv, s;// microvolts, db-microvolts, s-units
@@ -1137,15 +1150,22 @@ void setup()
 
   FFT.windowFunction(AudioWindowHanning256);
   FFT.averageTogether(30);
+  
+  AudioFFT.windowFunction(AudioWindowHanning1024);
+  AudioFFT.averageTogether(30);
 
   // Set up the Audio board
   AudioMemory(20);
   AudioNoInterrupts();
+
+  // Filter for DC cleaning before FFT Panadapter
+  biquad1.setHighpass(0,300,0.4);
+  biquad2.setHighpass(0,300,0.4);
   
   // Place the enable as first operation ...
   codec.enable();
-  //codec.adcHighPassFilterDisable();
-  codec.adcHighPassFilterEnable();
+  codec.adcHighPassFilterDisable();
+  //codec.adcHighPassFilterEnable();
   
   codec.inputSelect(AUDIO_INPUT_LINEIN);
   codec.volume(0.8);
@@ -1177,9 +1197,19 @@ void loop()
     timeSpc = millis();
     if ((timeSpc - lastTimeSpc) > intervalSpc){
       if (FFT.available()) { 
-        UpdateSpectrum_smooting();
-        //UpdateSpectrum();
-      } 
+        
+        // Is the Panadapter active ?
+        if (nscope ==0) Update_Panadapter();
+
+        // Update meter
+        Update_smeter();
+     } 
+
+     // Is the AudioScope Active
+     if (AudioFFT.available() && nscope ==1) {
+      
+        Update_AudioSpectrum();
+     }
       lastTimeSpc = timeSpc;
     }
   }
