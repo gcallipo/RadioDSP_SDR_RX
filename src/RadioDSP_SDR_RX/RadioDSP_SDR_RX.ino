@@ -2,8 +2,8 @@
   ******************************************************************************
   * @file    RadioDSP_SDR_RX.c
   * @author  Giuseppe Callipo - IK8YFW - ik8yfw@libero.it
-  * @version V1.0.0
-  * @date    02-12-2020
+  * @version V1.0.1
+  * @date    12-12-2020
   * @brief   Main routine file
   *
   ******************************************************************************
@@ -76,7 +76,8 @@
 
 //*************************************************************************
 #define MAX_DECIMAL_TUNING 2
-#define MAX_WATERFALL 75
+#define MAX_WATERFALL 50
+#define POSITION_SPECTRUM 159
 
 //************************************************************************
 // For optimized ILI9341_t3 library
@@ -624,7 +625,7 @@ void setScopeMode()
    nscope= nscope+1;
   }
   // Clean scope zone
-  tft.fillRect(0, 60, 260, 160, ILI9341_BLACK );
+  tft.fillRect(0, 52, 260, 160, ILI9341_BLACK );
 
   //showScopeMode();
   delay(200);
@@ -934,25 +935,36 @@ void showFreq()
 }
 
 //************************************************************************
-/*
-void Update_AudioSpectrum()
-{
-  int bar = 0;
-  int xPos = 0;
-  int low = 5;
 
-  // Spectrum
-  for (int x = 0; x <= 60; x++)
-  {
-    bar = abs(AudioFFT.output[x]*5);
-    if (bar > 80) bar = 80;
-    tft.drawFastVLine(32 + (xPos*3), 138 - bar, bar, ILI9341_ORANGE); //draw green bar
-    tft.drawFastVLine(32 + (xPos*3), 38, 100 - bar, ILI9341_BLACK);  //finish off with black to the top of the screen
-    xPos++;
-  }
+//************************************************************************
+//       Show Helf Panadapter 22KHz & Audio Spectrum - AF-FFT
+//************************************************************************
+void Update_DoubleSpectrum()
+{
+  // Display Half panadapter
+  Update_Panadapter(1);
+
+  // Display the Audio FFT
+  Update_AudioSpectrum();
+
+  tft.drawLine(0, 70, 260, 70, ILI9341_CYAN);
+  tft.drawLine(140, 50, 140, 220, ILI9341_CYAN);
+
+  tft.setFont(Arial_9_Bold);
+  tft.setTextColor(ILI9341_MAGENTA, ILI9341_BLACK);
+  tft.setCursor(20, 55);
+  tft.print("RX-SCOPE");
+  tft.setCursor(160, 55);
+  tft.print("AF-FFT");
+      
+  //tft.drawLine(0, 220, 320, 220, ILI9341_CYAN);
+  //tft.drawLine(175, 0, 175, 51, ILI9341_CYAN);
+
 }
-*/
 
+//************************************************************************
+//       Show single Audio Spectrum - AF-FFT
+//************************************************************************
 void Update_AudioSpectrum()
 {
   int bar = 0;
@@ -960,21 +972,25 @@ void Update_AudioSpectrum()
   int low = 5;
 
   // Spectrum
-  for (int x = 0; x <= 120; x++)
+  for (int x = 0; x <= 100; x++)
   {
     bar = abs(AudioFFT.output[x]*5);
     if (bar > 70) bar = 70;
-    tft.drawFastVLine(32 + (xPos), 170 - bar, bar, ILI9341_ORANGE); //draw green bar
-    tft.drawFastVLine(32 + (xPos), 70, 100 - bar, ILI9341_BLACK);  //finish off with black to the top of the screen
+    tft.drawFastVLine(146 + (xPos), (POSITION_SPECTRUM -1) - bar, bar, ILI9341_ORANGE); //draw green bar
+    tft.drawFastVLine(146 + (xPos), (POSITION_SPECTRUM -100), 100 - bar, ILI9341_BLACK);  //finish off with black to the top of the screen
     xPos++;
   }
-}
 
+  tft.setFont(Arial_8);
+  tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+  tft.setCursor(146, POSITION_SPECTRUM + 5);
+  tft.print("0  0.5k  1.5k  2.5k  3.5k");
+}
 
 //************************************************************************
 // 			Show full 44KHz wide signal spectrum & Wwaterfall
 //************************************************************************
-void Update_Panadapter()
+void Update_Panadapter(int iDisplayMode)
 {
   int bar = 0;
   int xPos = 0;
@@ -982,6 +998,21 @@ void Update_Panadapter()
   int scale=5;
   float avg = 0.0;
   float LPFcoeff = 0.7; 
+  int iMaxCols = 127; 
+
+  // Display size
+  if (iDisplayMode == 0){
+    // Full panadapter
+    iMaxCols = 127;
+    tft.drawLine(0, 70, 260, 70, ILI9341_CYAN);
+    tft.setFont(Arial_9_Bold);
+    tft.setTextColor(ILI9341_MAGENTA, ILI9341_BLACK);
+    tft.setCursor(20, 55);
+    tft.print("RX-SCOPE");
+  }else{
+    // Half panadapter
+    iMaxCols = 64;
+  }
 
   // Pre process spectrum data ...
   for (int x = 0; x < 256; x++){
@@ -1006,50 +1037,45 @@ void Update_Panadapter()
    SpectrumViewOld[x]= SpectrumView[x];
   }
     // Spectrum
-    for (int x = 0; x <= 127; x++)
+    for (int x = 0; x <= iMaxCols; x++)
     {
       WaterfallData[0][xPos] = abs(SpectrumView[x*2]);
       bar = WaterfallData[0][xPos];
       if (bar > 80)
         bar = 80;
-      tft.drawFastVLine(2 + (xPos*2), 138 - bar, bar, ILI9341_GREEN); //draw green bar
-      tft.drawFastVLine(2 + (xPos*2), 38, 100 - bar, ILI9341_BLACK);  //finish off with black to the top of the screen
+      tft.drawFastVLine(2 + (xPos*2), (POSITION_SPECTRUM -1) - bar, bar, ILI9341_GREEN); //draw green bar
+      tft.drawFastVLine(2 + (xPos*2), (POSITION_SPECTRUM -100), 100 - bar, ILI9341_BLACK);  //finish off with black to the top of the screen
       xPos++;
     }
   
     // Waterfall
     for (int row = MAX_WATERFALL-1; row >= 0; row--)
-      for (int col = 0; col <= 127; col++)
+      for (int col = 0; col <= iMaxCols; col++)
       {
         WaterfallData[row][col] = WaterfallData[row - 1][col];
   
         if (WaterfallData[row][col] >= low + 75)
-          tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_RED);
+          tft.drawPixel(2 + (col * 2), POSITION_SPECTRUM + row, ILI9341_RED);
   
         else if ((WaterfallData[row][col] >= low + 60) && (WaterfallData[row][col] < low + 75))
-          tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_MAGENTA);
+          tft.drawPixel(2 + (col * 2), POSITION_SPECTRUM + row, ILI9341_MAGENTA);
           
         else if ((WaterfallData[row][col] >= low + 45) && (WaterfallData[row][col] < low + 60))
-          tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_ORANGE);  
+          tft.drawPixel(2 + (col * 2), POSITION_SPECTRUM + row, ILI9341_ORANGE);  
   
         else if ((WaterfallData[row][col] >= low + 30) && (WaterfallData[row][col] < low + 45))
-          tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_YELLOW);
+          tft.drawPixel(2 + (col * 2), POSITION_SPECTRUM + row, ILI9341_YELLOW);
   
         else if ((WaterfallData[row][col] >= low + 20) && (WaterfallData[row][col] < low + 30))
-          tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_BLUE);
+          tft.drawPixel(2 + (col * 2), POSITION_SPECTRUM + row, ILI9341_BLUE);
   
         else if (WaterfallData[row][col] < low + 20)
-          tft.drawPixel(2 + (col * 2), 139 + row, ILI9341_BLACK);
+          tft.drawPixel(2 + (col * 2), POSITION_SPECTRUM + row, ILI9341_BLACK);
      }
   
       // Display the carrier Tunig line
-      tft.drawFastVLine(72, 50, 90, ILI9341_RED); //draw green bar
-      tft.drawFastVLine(100, 50, 90, ILI9341_RED); //draw green bar
-//      tft.setFont(Arial_9_Bold);
-//      tft.setCursor(72, 45);
-//      tft.setTextColor(ILI9341_BLACK, ILI9341_BLUE);
-//      tft.print("[RX]");
-
+      tft.drawFastVLine(72, 70, 90, ILI9341_RED); //draw green bar
+      tft.drawFastVLine(100, 70, 90, ILI9341_RED); //draw green bar
 }
 
 //************************************************************************
@@ -1198,8 +1224,8 @@ void loop()
     if ((timeSpc - lastTimeSpc) > intervalSpc){
       if (FFT.available()) { 
         
-        // Is the Panadapter active ?
-        if (nscope ==0) Update_Panadapter();
+        // Is the Full Panadapter active ?
+        if (nscope ==0) Update_Panadapter(0);
 
         // Update meter
         Update_smeter();
@@ -1208,7 +1234,8 @@ void loop()
      // Is the AudioScope Active
      if (AudioFFT.available() && nscope ==1) {
       
-        Update_AudioSpectrum();
+        //Update_AudioSpectrum();
+        Update_DoubleSpectrum();
      }
       lastTimeSpc = timeSpc;
     }
