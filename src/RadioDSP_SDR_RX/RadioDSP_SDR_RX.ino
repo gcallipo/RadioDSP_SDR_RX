@@ -2,8 +2,8 @@
   ******************************************************************************
   * @file    RadioDSP_SDR_RX.c
   * @author  Giuseppe Callipo - IK8YFW - ik8yfw@libero.it
-  * @version V1.0.2
-  * @date    18-12-2020
+  * @version V1.0.3
+  * @date    25-12-2020
   * @brief   Main routine file
   *
   ******************************************************************************
@@ -45,11 +45,6 @@ Si5351      si5351;
 // Using pins 4 and 5 on teensy 4.0 for A/B tuning encoder
 Encoder Position(4, 5);
 
-AudioRecordQueue         Q_in_L;
-AudioRecordQueue         Q_in_R;
-AudioPlayQueue           Q_out_L;
-AudioPlayQueue           Q_out_R;
-
 //************************************************************************
 //************************************************************************
 // Audio library classes
@@ -64,33 +59,46 @@ AudioFilterBiquad      biquad1;
 AudioFilterBiquad      biquad2;
 
 //************************************************************************
-// Audio Block connections
+// Audio components for the convolutional blocks
+AudioRecordQueue         Q_in_L;
+AudioRecordQueue         Q_in_R;
+AudioPlayQueue           Q_out_L;
+AudioPlayQueue           Q_out_R;
+
+//************************************************************************
+// Audio Input block connections
 AudioConnection c1(IQinput, 0, preProcessor, 0);
 AudioConnection c2(IQinput, 1, preProcessor, 1);
 
+// Spectrum RF analisys
 AudioConnection c2f1(IQinput, 0, biquad1, 0);  
 AudioConnection c2f2(IQinput, 1, biquad2, 0);  
-
 AudioConnection c2f11(biquad1, 0, FFT, 0);  
 AudioConnection c2f22(biquad2, 0, FFT, 1);  
 
-//AudioConnection c3(preProcessor, 0,  SDR, 0);
-//AudioConnection c4(preProcessor, 1,  SDR, 1);
+// Standard not convolutional path
+/*
+AudioConnection c3(preProcessor, 0,  SDR, 0);
+AudioConnection c4(preProcessor, 1,  SDR, 1);
+*/
+// Prepocessing Convolutional Input Path
 
 AudioConnection a1(preProcessor, 0, Q_in_L, 0);
 AudioConnection a2(preProcessor, 1, Q_in_R, 0);
-
 AudioConnection a3(Q_out_L, 0, SDR, 0);
 AudioConnection a4(Q_out_R, 0, SDR, 1);
 
+// Audio FFT analisys
 AudioConnection c2f4a(SDR, 0, AudioFFT, 0);  
+
+// Audio Output connection
 AudioConnection c5(SDR, 0, audio_out, 0);
 AudioConnection c6(SDR, 1, audio_out, 1);
 
 //**************************************************************************
 // Timer management
 Metro tuner = Metro(50);
-Metro touch = Metro(200);
+Metro commands = Metro(200);
 //**************************************************************************
 
 //************************************************************************
@@ -146,8 +154,7 @@ void setup()
   AudioFFT.averageTogether(30);
 
   // Set up the Audio board
-  //AudioMemory(20);
-  AudioMemory(60);
+  AudioMemory(40);
   AudioNoInterrupts();
 
   // Filter for DC cleaning before FFT Panadapter
@@ -156,18 +163,26 @@ void setup()
   
   // Place the enable as first operation ...
   codec.enable();
-  codec.adcHighPassFilterDisable();
-  //codec.adcHighPassFilterEnable();
-  
   codec.inputSelect(AUDIO_INPUT_LINEIN);
-  codec.volume(0.8);
-  codec.lineInLevel(10);  // Set codec input voltage level to most sensitive
-  codec.lineOutLevel(13); // Set codec output voltage level to most sensitive
+  codec.volume(1);
+  codec.lineInLevel(8);  // Set codec input voltage level to most sensitive
+  codec.lineOutLevel(10); // Set codec output voltage level to most sensitive
+
+  /* Autovolume & special settings */
+  codec.autoVolumeControl(2,1,0,-30,3,20); // add a compressor limiter
+  codec.autoVolumeEnable();// let the volume control itself..... poor mans agc
+  codec.unmuteHeadphone();
+  codec.unmuteLineout(); //unmute the audio output
+  codec.adcHighPassFilterDisable();
+  /* end Autovolume & special settings */ 
+  
   AudioInterrupts();
   delay(500);
   SDR.setMute(false);
 
+  // Initializzation Convolutional struct
   doConvolutionalInitialize();
+  delay(500);
 }
 
 //************************************************************************
@@ -178,7 +193,7 @@ void setup()
 
 void loop()
 {
-  if (touch.check() == 1)
+  if (commands.check() == 1)
   {
     checkCmd();
   }
@@ -209,7 +224,8 @@ void loop()
     }
   }
 
-  if (nrndx==3){
+  // 
+  if (nrndx==1){
     TH_VALUE = 0.8;
   }else{
     TH_VALUE = 0;

@@ -173,10 +173,6 @@ void  MENU_SetButtons(String leftButtonLabel, String rightButtonLabel){
       tft.print(rightButtonLabel);
 };
 
-
-
-//************************************************************************
-
 //************************************************************************
 //       Show single Audio Spectrum - AF-FFT
 //************************************************************************

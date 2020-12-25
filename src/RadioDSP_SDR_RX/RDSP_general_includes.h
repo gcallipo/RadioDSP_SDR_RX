@@ -47,8 +47,8 @@
 //************************************************************************
 // Define 3 buttons for menu handling
 #define BUTTON_D2   2
-#define BUTTON_D3   3
-#define BUTTON_D6   6
+#define BUTTON_D3   6
+#define BUTTON_D6   3
 
 #define MENU_MODE    0
 #define RUNNING_MODE 1

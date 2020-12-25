@@ -229,7 +229,7 @@ void setAgc()
 //************************************************************************
 void setNRMode()
 {
-  if(nrndx==3)
+  if(nrndx==2)
   {
     SDR.enableAGC();  
     nrndx=0;
@@ -246,29 +246,34 @@ void setNRMode()
   }
   if(nrndx==1)
   {
-   SDR.enableALSfilter();
-   SDR.setALSfilterPeak();
-   SDR.setALSfilterAdaptive();
-   newNR= "NR PK";
+   SDR.disableALSfilter();
+   SDR.disableAGC();  
+   newNR= "DNR";
+   
+   //SDR.enableALSfilter();
+   //SDR.setALSfilterPeak();
+   //SDR.setALSfilterAdaptive();
+   //newNR= "NR PK";
   }
 
   if(nrndx==2)
   {
+   SDR.enableAGC();  
    SDR.enableALSfilter();
    SDR.setALSfilterNotch();
    SDR.setALSfilterAdaptive();
-   newNR= "NR NT";
+   newNR= "NOTCH";
   }
 
-  if(nrndx==3)
-  {
+ // if(nrndx==3)
+ // {
    //SDR.enableALSfilter();
    //SDR.setALSfilterNotch();
    //SDR.setALSfilterAdaptive();
-   SDR.disableALSfilter();
-   SDR.disableAGC();  
-   newNR= "NR SP";
-  }
+ //  SDR.disableALSfilter();
+ //  SDR.disableAGC();  
+ //  newNR= "NR SP";
+ // }
 
 
   showNRMode();
