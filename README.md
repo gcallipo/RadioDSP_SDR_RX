@@ -16,9 +16,7 @@ Video 3: RX 20 mt band CW test Auto Notch filter.
 https://youtu.be/WXXLD94oXxc
 
 Video 4: RX 40 mt band SSB, extreme QRM noise corrupted signal and Noise reduction action.
-https://youtu.be/gWk815RVQAg
-
-
+https://youtu.be/_-evbWLCN_s
 
 NOTE:
 This Project is Work in Progress (updated on 27.12.2020)
