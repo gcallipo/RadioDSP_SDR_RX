@@ -3,6 +3,7 @@ This project define a simple shortwave all mode and general coverage Software De
 
 03.12.2020 First commit.
 25.12.2020 Refactoring code and add DNR based on spectrum subtraction. 
+03.01.2021 Fine tuning AVC and DNR
 
 Test reception videos
 
@@ -19,4 +20,4 @@ Video 4: RX 40 mt band SSB, extreme QRM noise corrupted signal and Noise reducti
 https://youtu.be/_-evbWLCN_s
 
 NOTE:
-This Project is Work in Progress (updated on 27.12.2020)
+This Project is Work in Progress (updated on 03.01.2021)
