@@ -76,13 +76,7 @@ AudioConnection c2f2(IQinput, 1, biquad2, 0);
 AudioConnection c2f11(biquad1, 0, FFT, 0);  
 AudioConnection c2f22(biquad2, 0, FFT, 1);  
 
-// Standard not convolutional path
-/*
-AudioConnection c3(preProcessor, 0,  SDR, 0);
-AudioConnection c4(preProcessor, 1,  SDR, 1);
-*/
-// Prepocessing Convolutional Input Path
-
+// Convolutional path 
 AudioConnection a1(preProcessor, 0, Q_in_L, 0);
 AudioConnection a2(preProcessor, 1, Q_in_R, 0);
 AudioConnection a3(Q_out_L, 0, SDR, 0);
@@ -133,8 +127,9 @@ void setup()
   newNR= "";
   showNRMode();
  
-  SDR.enableNoiseBlanker();             // You can choose whether this is necessary
-  SDR.setNoiseBlankerThresholdDb(10.0); // This works on my setup
+  //SDR.enableNoiseBlanker();             // You can choose whether this is necessary
+  //SDR.setNoiseBlankerThresholdDb(20.0); // This works on my setup
+  SDR.disableNoiseBlanker();             // You can choose whether this is necessary
  
   SDR.setInputGain(1.0);                // You mave have to experiment with these
   SDR.setOutputGain(0.5);
@@ -169,18 +164,41 @@ void setup()
   codec.lineOutLevel(10); // Set codec output voltage level to most sensitive
 
   /* Autovolume & special settings */
-  codec.autoVolumeControl(2,1,0,-30,3,20); // add a compressor limiter
-  codec.autoVolumeEnable();// let the volume control itself..... poor mans agc
+  /* COMMENTS FROM Teensy Audio library:
+    Valid values for dap_avc parameters
+    maxGain; Maximum gain that can be applied
+    0 - 0 dB
+    1 - 6.0 dB
+    2 - 12 dB
+    lbiResponse; Integrator Response
+    0 - 0 mS
+    1 - 25 mS
+    2 - 50 mS
+    3 - 100 mS
+    hardLimit
+    0 - Hard limit disabled. AVC Compressor/Expander enabled.
+    1 - Hard limit enabled. The signal is limited to the programmed threshold (signal saturates at the threshold)
+    threshold
+    floating point in range 0 to -96 dB
+    attack
+    floating point figure is dB/s rate at which gain is increased
+    decay
+    floating point figure is dB/s rate at which gain is reduced
+    */
+  codec.autoVolumeControl(0,2,1,-10,3,10); // add a compressor limiter
+  codec.autoVolumeEnable(); //let the volume control itself..... poor mans agc
+  //codec.autoVolumeControl(2,1,0,-30,3,20); // add a compressor limiter
+  //codec.autoVolumeEnable();// 
   codec.unmuteHeadphone();
   codec.unmuteLineout(); //unmute the audio output
-  codec.adcHighPassFilterDisable();
+//  codec.adcHighPassFilterDisable();
+  codec.adcHighPassFilterEnable();
   /* end Autovolume & special settings */ 
-  
   AudioInterrupts();
   delay(500);
   SDR.setMute(false);
 
-  // Initializzation Convolutional struct
+  // Initializzation Convolutional struct for future use
   doConvolutionalInitialize();
   delay(500);
 }
@@ -224,11 +242,7 @@ void loop()
     }
   }
 
-  // 
-  if (nrndx==1){
-    TH_VALUE = 0.8;
-  }else{
-    TH_VALUE = 0;
-  }
-  doConvolutionalProcessing_Denoise();
-}
+  // Execute convolutional processing block
+  doConvolutionalProcessing(nr_level);
+  
+ }

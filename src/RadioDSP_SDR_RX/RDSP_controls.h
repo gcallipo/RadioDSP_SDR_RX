@@ -229,9 +229,8 @@ void setAgc()
 //************************************************************************
 void setNRMode()
 {
-  if(nrndx==2)
+  if(nrndx==5)
   {
-    SDR.enableAGC();  
     nrndx=0;
   }
   else
@@ -242,21 +241,12 @@ void setNRMode()
   if(nrndx==0)
   { 
    SDR.disableALSfilter();
+   SDR.enableAGC();  
    newNR= "";
+   nr_level = 0;
   }
+  
   if(nrndx==1)
-  {
-   SDR.disableALSfilter();
-   SDR.disableAGC();  
-   newNR= "DNR";
-   
-   //SDR.enableALSfilter();
-   //SDR.setALSfilterPeak();
-   //SDR.setALSfilterAdaptive();
-   //newNR= "NR PK";
-  }
-
-  if(nrndx==2)
   {
    SDR.enableAGC();  
    SDR.enableALSfilter();
@@ -265,17 +255,36 @@ void setNRMode()
    newNR= "NOTCH";
   }
 
- // if(nrndx==3)
- // {
-   //SDR.enableALSfilter();
-   //SDR.setALSfilterNotch();
-   //SDR.setALSfilterAdaptive();
- //  SDR.disableALSfilter();
- //  SDR.disableAGC();  
- //  newNR= "NR SP";
- // }
+  if(nrndx==2)
+  {
+   SDR.disableALSfilter();
+   SDR.disableAGC();  
+   newNR= "DNR 1";
+   nr_level = 2;
+  }
 
+  if(nrndx==3)
+  {
+   SDR.disableALSfilter();
+   SDR.disableAGC();  
+   newNR= "DNR 2";
+   nr_level = 4;
+  }
 
+ if(nrndx==4)
+  {
+   SDR.disableALSfilter();
+   SDR.disableAGC();  
+   newNR= "DNR 3";
+   nr_level = 8;
+  }
+  if(nrndx==5)
+  {
+   SDR.disableALSfilter();
+   SDR.disableAGC();  
+   newNR= "DNR 4";
+   nr_level = 16;
+  }
   showNRMode();
   delay(200);
 }

@@ -18,7 +18,6 @@
 
 //************************************************************************
 //************************************************************************
-
 extern AudioRecordQueue         Q_in_L;
 extern AudioRecordQueue         Q_in_R;
 extern AudioPlayQueue           Q_out_L;
@@ -32,8 +31,8 @@ extern AudioPlayQueue           Q_out_R;
  *      CONVOLUTIONAL PART - COMMON PART AND DNR PART
  */
 
-#define        STATING_BIN_VAD_ANALISYS 60
-#define        ENDING_BIN_VAD_ANALISYS  120
+#define        STATING_BIN_VAD_ANALISYS 30  //60
+#define        ENDING_BIN_VAD_ANALISYS  180 //120
 
 #define        BUFFER_SIZE 128
 float          TH_VALUE = 0.09; 
@@ -63,8 +62,6 @@ float32_t      last_sample_buffer_R [BUFFER_SIZE * N_B]; // 2048 * 4 = 8kb
 
 // This is only Dummy buffer . Mybe we don't need this, but I need it for compile pourposes. TO BE CHECKED !
 float32_t      FIR_filter_mask [FFT_L * 2] __attribute__ ((aligned (4)));  // 4096 * 4 = 16kb
-//*************************************************************************************************
-//*************************************************************************************************
 
 //************************************************************************
 //************************************************************************
@@ -109,9 +106,15 @@ void doConvolutionalInitialize(){
   Q_in_R.begin();
 }
 
-void doConvolutionalProcessing_Denoise(){
+float NFloor = 0;
+
+/*- Execute the main convolutional processing, at the moment denoise spectral subtraction is active */
+void doConvolutionalProcessing(float iNRLevel){
+
+  // moving mean coefficient 
+  float beta = 0.65;
+
   
- // elapsedMicros usec = 0;
   // are there at least N_BLOCKS buffers in each channel available ?
     if (Q_in_L.available() > N_BLOCKS + 0 && Q_in_R.available() > N_BLOCKS + 0)
     {
@@ -178,23 +181,39 @@ void doConvolutionalProcessing_Denoise(){
       /* Process the data through the Complex Magniture Module for calculating the magnitude at each bin */
       arm_cmplx_mag_f32(FFT_buffer, FFTBufferMag, FFT_length);
 
-      // ONLY TEST !!!!!!
-      float specVal = 0.0;
-      if(TH_VALUE>0){
-        for(int m = STATING_BIN_VAD_ANALISYS; m<=ENDING_BIN_VAD_ANALISYS; m++)  { specVal = specVal+FFTBufferMag[m]; }
-        // Evaluate mean value...
-        TH_VALUE = specVal/(ENDING_BIN_VAD_ANALISYS - STATING_BIN_VAD_ANALISYS);
-        TH_VALUE = TH_VALUE*3;
-      }
+    //************************************************************************************
+    //******************************  Evaluate Noise Floor  
+    //************************************************************************************
+    float specVal = 0.0;
+    // the level scaling are:
+    // 0: non correction
+    // 1: Low
+    // 2: Medium
+    // 3: High
+    
+    for(int m = STATING_BIN_VAD_ANALISYS; m<=ENDING_BIN_VAD_ANALISYS; m++)  
+    { 
+      specVal = specVal+FFTBufferMag[m]; 
+    }
+    
+    // Evaluate mean value...
+    TH_VALUE = specVal/(ENDING_BIN_VAD_ANALISYS - STATING_BIN_VAD_ANALISYS);
+    // scale level by weight...
+    TH_VALUE = TH_VALUE*(iNRLevel*1.5);
 
+    // track & smoth the mean value over frames ...
+    NFloor += (TH_VALUE - NFloor) * beta;
+    NFloor = (NFloor > 0)? NFloor : 0;
+    
+    //************************************************************************************
       /* Substraction ... */
       for (int j =0; j< FFT_length*2; j++)
       {
         /*- Subtract threshold noise */
-       if (FFTBufferMag[j]<=TH_VALUE){
+       if (FFTBufferMag[j]<=NFloor){
             FFTBufferMag[j] = FFTBufferMag[j] * 0.2;
         }else{
-            FFTBufferMag[j] =  FFTBufferMag[j]- TH_VALUE;
+            FFTBufferMag[j] =  FFTBufferMag[j]- NFloor;
         }
       }
 

@@ -94,6 +94,8 @@ int                 andx = 2; //Agc medium
 int                 lock = 0;
 int                 nscope = 1; // 0 = Panadapter - 1 = Audioscope
 
+int                 nr_level = 0; // no spectrum denoise
+
 int                 minTS = 1;
 int                 maxTS = 6;
 
