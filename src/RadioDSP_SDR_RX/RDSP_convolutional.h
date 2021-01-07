@@ -15,6 +15,7 @@
 
 #include "RDSP_general_includes.h"
 #include "RDSP_convolutional.h"
+#include "RDSP_noise_reduction.h"
 
 //************************************************************************
 //************************************************************************
@@ -30,12 +31,7 @@ extern AudioPlayQueue           Q_out_R;
 /*********************************************************************************************
  *      CONVOLUTIONAL PART - COMMON PART AND DNR PART
  */
-
-#define        STATING_BIN_VAD_ANALISYS 30  //60
-#define        ENDING_BIN_VAD_ANALISYS  180 //120
-
 #define        BUFFER_SIZE 128
-float          TH_VALUE = 0.09; 
 double         SAMPLE_RATE = (double)AUDIO_SAMPLE_RATE_EXACT;  
 const uint32_t FFT_L = 256; // 512 1024 2048 4096
 uint32_t       FFT_length = FFT_L;
@@ -52,7 +48,6 @@ const static   arm_cfft_instance_f32 *S;
 const static   arm_cfft_instance_f32 *iS;
 
 float32_t      iFFT_buffer [FFT_L * 2] __attribute__ ((aligned (4)));  // 4096 * 4 = 16kb
-float32_t      FFTBufferMag [FFT_L * 2] __attribute__ ((aligned (4))); 
 float32_t      float_buffer_L [BUFFER_SIZE * N_B];  // 2048 * 4 = 8kb
 float32_t      float_buffer_R [BUFFER_SIZE * N_B]; // 2048 * 4 = 8kb
 
@@ -60,45 +55,150 @@ float32_t      FFT_buffer [FFT_L * 2] __attribute__ ((aligned (4)));  // 4096 * 
 float32_t      last_sample_buffer_L [BUFFER_SIZE * N_B];  // 2048 * 4 = 8kb
 float32_t      last_sample_buffer_R [BUFFER_SIZE * N_B]; // 2048 * 4 = 8kb
 
-// This is only Dummy buffer . Mybe we don't need this, but I need it for compile pourposes. TO BE CHECKED !
+/*********************************************************************************************
+ *      FILTER PART - ENABLE ONLY IF CONVOLUTIONAL FILTERING IS ENABLED
+ */
+#define        FOURPI  (2.0 * TWO_PI)
+#define        SIXPI   (3.0 * TWO_PI)
+int32_t        sum;
+int            idx_t = 0;
+float32_t      mean;
+uint8_t        FIR_filter_window = 1;
+double         FLoCut = 300.0;
+double         FHiCut = 4000.0;
+double         FIR_Coef_I[(FFT_L / 2) + 1]; // 2048 * 4 = 8kb
+double         FIR_Coef_Q[(FFT_L / 2) + 1]; // 2048 * 4 = 8kb
+#define        MAX_NUMCOEF (FFT_L / 2) + 1
+uint32_t       m_NumTaps = (FFT_L / 2) + 1;
+
+// FFT instance for direct calculation of the filter mask
+// from the impulse response of the FIR - the coefficients
+const static   arm_cfft_instance_f32 *maskS;
 float32_t      FIR_filter_mask [FFT_L * 2] __attribute__ ((aligned (4)));  // 4096 * 4 = 16kb
+
+// hold the actual nr setting
+int oldNRLevel = 15;
 
 //************************************************************************
 //************************************************************************
 //*******************   CONVOLUTIONAL SECTION  ***************************
 //************************************************************************
+
+void init_filter_mask()
+{
+  /****************************************************************************************
+     Calculate the FFT of the FIR filter coefficients once to produce the FIR filter mask
+  ****************************************************************************************/
+  // the FIR has exactly m_NumTaps and a maximum of (FFT_length / 2) + 1 taps = coefficients, 
+  // so we have to add (FFT_length / 2) -1 zeros before the FFT
+  // in order to produce a FFT_length point input buffer for the FFT
+  // copy coefficients into real values of first part of buffer, rest is zero
+  for (unsigned i = 0; i < m_NumTaps; i++)
+  {
+    FIR_filter_mask[i * 2] = FIR_Coef_I [i];
+    FIR_filter_mask[i * 2 + 1] = FIR_Coef_Q [i];
+  }
+
+  for (unsigned i = FFT_length + 1; i < FFT_length * 2; i++)
+  {
+    FIR_filter_mask[i] = 0.0;
+  }
+  // FFT of FIR_filter_mask
+  // perform FFT (in-place), needs only to be done once (or every time the filter coeffs change)
+  arm_cfft_f32(maskS, FIR_filter_mask, 0, 1);
+
+} // end init_filter_mask
+
+
+
+//////////////////////////////////////////////////////////////////////
+//  Call to setup complex filter parameters [can process two channels at the same time!]
+//  The two channels could be stereo audio or I and Q channel in a Software Defined Radio
+// SampleRate in Hz
+// FLowcut is low cutoff frequency of filter in Hz
+// FHicut is high cutoff frequency of filter in Hz
+// Offset is the CW tone offset frequency
+// cutoff frequencies range from -SampleRate/2 to +SampleRate/2
+//  HiCut must be greater than LowCut
+//    example to make 2700Hz USB filter:
+//  SetupParameters( 100, 2800, 0, 48000);
+//////////////////////////////////////////////////////////////////////
+
+void calc_cplx_FIR_coeffs (double * coeffs_I, double * coeffs_Q, int numCoeffs, double FLoCut, double FHiCut, double SampleRate)
+// pointer to coefficients variable, no. of coefficients to calculate, frequency where it happens, stopband attenuation in dB,
+// filter type, half-filter bandwidth (only for bandpass and notch)
+{
+  //calculate some normalized filter parameters
+  double nFL = FLoCut / SampleRate;
+  double nFH = FHiCut / SampleRate;
+  double nFc = (nFH - nFL) / 2.0; //prototype LP filter cutoff
+  double nFs = PI * (nFH + nFL); //2 PI times required frequency shift (FHiCut+FLoCut)/2
+  double fCenter = 0.5 * (double)(numCoeffs - 1); //floating point center index of FIR filter
+
+  for (int i = 0; i < numCoeffs; i++) //zero pad entire coefficient buffer
+  {
+    coeffs_I[i] = 0.0;
+    coeffs_Q[i] = 0.0;
+  }
+
+  //create LP FIR windowed sinc, sin(x)/x complex LP filter coefficients
+  for (int i = 0; i < numCoeffs; i++)
+  {
+    double x = (float32_t)i - fCenter;
+    double z;
+    if ( abs((double)i - fCenter) < 0.01) //deal with odd size filter singularity where sin(0)/0==1
+      z = 2.0 * nFc;
+    else
+      switch (FIR_filter_window) {
+        case 1:    // 4-term Blackman-Harris --> this is what Power SDR uses
+          z = (double)sin(TWO_PI * x * nFc) / (PI * x) *
+              (0.35875 - 0.48829 * cos( (TWO_PI * i) / (numCoeffs - 1) )
+               + 0.14128 * cos( (FOURPI * i) / (numCoeffs - 1) )
+               - 0.01168 * cos( (SIXPI * i) / (numCoeffs - 1) ) );
+          break;
+        case 2:
+          z = (double)sin(TWO_PI * x * nFc) / (PI * x) *
+              (0.355768 - 0.487396 * cos( (TWO_PI * i) / (numCoeffs - 1) )
+               + 0.144232 * cos( (FOURPI * i) / (numCoeffs - 1) )
+               - 0.012604 * cos( (SIXPI * i) / (numCoeffs - 1) ) );
+          break;
+        case 3: // cosine
+          z = (double)sin(TWO_PI * x * nFc) / (PI * x) *
+              cos((PI * (float32_t)i) / (numCoeffs - 1));
+          break;
+        case 4: // Hann
+          z = (double)sin(TWO_PI * x * nFc) / (PI * x) *
+              0.5 * (double)(1.0 - (cos(PI * 2 * (double)i / (double)(numCoeffs - 1))));
+          break;
+        default: // Blackman-Nuttall window
+          z = (double)sin(TWO_PI * x * nFc) / (PI * x) *
+              (0.3635819
+               - 0.4891775 * cos( (TWO_PI * i) / (numCoeffs - 1) )
+               + 0.1365995 * cos( (FOURPI * i) / (numCoeffs - 1) )
+               - 0.0106411 * cos( (SIXPI * i) / (numCoeffs - 1) ) );
+          break;
+      }
+    //shift lowpass filter coefficients in frequency by (hicut+lowcut)/2 to form bandpass filter anywhere in range
+    coeffs_I[i]  =  z * cos(nFs * x);
+    coeffs_Q[i] = z * sin(nFs * x);
+  }
+}
  
 void doConvolutionalInitialize(){
 
-  /****************************************************************************************
+ /****************************************************************************************
      init complex FFTs
+ ****************************************************************************************/
+  
+ S = &arm_cfft_sR_f32_len256;
+ iS = &arm_cfft_sR_f32_len256;
+ maskS = &arm_cfft_sR_f32_len256;
+  
+  /****************************************************************************************
+     Calculate the FFT of the FIR filter coefficients once to produce the FIR filter mask
   ****************************************************************************************/
-  switch (FFT_length)
-  {
-    case 256:
-      S = &arm_cfft_sR_f32_len256;
-      iS = &arm_cfft_sR_f32_len256;
-      break;
-    case 512:
-      S = &arm_cfft_sR_f32_len512;
-      iS = &arm_cfft_sR_f32_len512;
-      break;
-    case 1024:
-      S = &arm_cfft_sR_f32_len1024;
-      iS = &arm_cfft_sR_f32_len1024;
-      break;
-    case 2048:
-      S = &arm_cfft_sR_f32_len2048;
-      iS = &arm_cfft_sR_f32_len2048;
-      break;
-    case 4096:
-      S = &arm_cfft_sR_f32_len4096;
-      iS = &arm_cfft_sR_f32_len4096;
-      break;
-  }
-
- // This is only Dummy buffer . Mybe we don't need this, but I need it for compile pourposes. TO BE CHECKED !
- arm_cfft_f32(S, FIR_filter_mask , 0, 1);
+  
+ init_filter_mask();
   /****************************************************************************************
      begin to queue the audio from the audio library
   ****************************************************************************************/
@@ -106,14 +206,26 @@ void doConvolutionalInitialize(){
   Q_in_R.begin();
 }
 
-float NFloor = 0;
+void reInitializeFilter(double dFLoCut, double dFHiCut){
+
+  AudioNoInterrupts();
+ /****************************************************************************************
+     set filter bandwidth
+  ****************************************************************************************/
+  // this routine does all the magic of calculating the FIR coeffs
+  calc_cplx_FIR_coeffs (FIR_Coef_I, FIR_Coef_Q, m_NumTaps, dFLoCut, dFHiCut, SAMPLE_RATE);
+  /****************************************************************************************
+     Calculate the FFT of the FIR filter coefficients once to produce the FIR filter mask
+  ****************************************************************************************/
+  init_filter_mask();
+
+  AudioInterrupts();
+
+}
+
 
 /*- Execute the main convolutional processing, at the moment denoise spectral subtraction is active */
-void doConvolutionalProcessing(float iNRLevel){
-
-  // moving mean coefficient 
-  float beta = 0.65;
-
+void doConvolutionalProcessing(float iNRLevel, boolean bFilterEnabled, double dFLoCut, double dFHiCut){
   
   // are there at least N_BLOCKS buffers in each channel available ?
     if (Q_in_L.available() > N_BLOCKS + 0 && Q_in_R.available() > N_BLOCKS + 0)
@@ -178,66 +290,20 @@ void doConvolutionalProcessing(float iNRLevel){
       // calculation is performed in-place the FFT_buffer [re, im, re, im, re, im . . .]
       arm_cfft_f32(S, FFT_buffer, 0, 1);
 
-      /* Process the data through the Complex Magniture Module for calculating the magnitude at each bin */
-      arm_cmplx_mag_f32(FFT_buffer, FFTBufferMag, FFT_length);
-
-    //************************************************************************************
-    //******************************  Evaluate Noise Floor  
-    //************************************************************************************
-    float specVal = 0.0;
-    // the level scaling are:
-    // 0: non correction
-    // 1: Low
-    // 2: Medium
-    // 3: High
-    
-    for(int m = STATING_BIN_VAD_ANALISYS; m<=ENDING_BIN_VAD_ANALISYS; m++)  
-    { 
-      specVal = specVal+FFTBufferMag[m]; 
+     /* here we can process also the magnitude for general use ... 
+     * Process the data through the Complex Magniture Module for calculating the magnitude at each bin */
+     //arm_cmplx_mag_f32(FFT_buffer, FFTBufferMag, FFT_length);
+     
+     /**********************************************************************************
+          Complex multiplication with filter mask (precalculated coefficients subjected to an FFT)
+       **********************************************************************************/
+    if (bFilterEnabled == true){   
+       arm_cmplx_mult_cmplx_f32 (FFT_buffer, FIR_filter_mask, iFFT_buffer, FFT_length);
+    }else{
+       arm_copy_f32(FFT_buffer, iFFT_buffer, FFT_length);
     }
-    
-    // Evaluate mean value...
-    TH_VALUE = specVal/(ENDING_BIN_VAD_ANALISYS - STATING_BIN_VAD_ANALISYS);
-    // scale level by weight...
-    TH_VALUE = TH_VALUE*(iNRLevel*1.5);
-
-    // track & smoth the mean value over frames ...
-    NFloor += (TH_VALUE - NFloor) * beta;
-    NFloor = (NFloor > 0)? NFloor : 0;
-    
-    //************************************************************************************
-      /* Substraction ... */
-      for (int j =0; j< FFT_length*2; j++)
-      {
-        /*- Subtract threshold noise */
-       if (FFTBufferMag[j]<=NFloor){
-            FFTBufferMag[j] = FFTBufferMag[j] * 0.2;
-        }else{
-            FFTBufferMag[j] =  FFTBufferMag[j]- NFloor;
-        }
-      }
-
-      /* Rebuild & discard the fft complex signal from subctracted magnitude & original signal phase */
-      int k =1;
-      int s= 0;
-      for (int j =0; j< FFT_length*2; j++)
-      {
-    
-          float32_t r1 = FFT_buffer[s]; float32_t i1 = FFT_buffer[k];
-          //complex float z= r1 + i1*I;
-          //float32_t phi = cargf(z);
-          float32_t phi = atan2(i1, r1);
-          
-          float32_t r2 = FFTBufferMag[j]*arm_cos_f32(phi);
-          float32_t i2 = FFTBufferMag[j]*arm_sin_f32(phi);
-    
-          iFFT_buffer[s] = r2;
-          iFFT_buffer[k] = i2;
-          s=s+2;
-          k=s+1;
-      }
-      
-      /**********************************************************************************
+     
+     /**********************************************************************************
           Complex inverse FFT
        **********************************************************************************/
       arm_cfft_f32(iS, iFFT_buffer, 1, 1);
@@ -250,6 +316,25 @@ void doConvolutionalProcessing(float iNRLevel){
           float_buffer_L[i] = iFFT_buffer[FFT_length + i * 2];
           float_buffer_R[i] = iFFT_buffer[FFT_length + i * 2 + 1];
         }
+
+       /**********************************************************************************
+          Demodulation / manipulation / do whatever you want 
+       **********************************************************************************/
+       //  at this time, just put filtered audio (interleaved format, overlap & save) into left and right channel     
+
+       // apply the LMS but with single block.
+       if ( iNRLevel >0){ 
+         if (iNRLevel!=oldNRLevel){
+            Init_LMS_NR (iNRLevel);
+            oldNRLevel = iNRLevel;
+         }
+        
+         LMS_NoiseReduction(128, float_buffer_L);
+         for (int i = 0; i < BUFFER_SIZE; i++)
+         {  float_buffer_L [i] = float_buffer_L [i]* 1.1;
+            float_buffer_R [i] = float_buffer_L [i];
+         }    
+       }
 
        /**********************************************************************
           CONVERT TO INTEGER AND PLAY AUDIO - Push audio into I2S audio chain
@@ -265,7 +350,6 @@ void doConvolutionalProcessing(float iNRLevel){
         }
 
     } // end of audio process loop
-      
 }
 
 #endif /* RDSP_CONVOLUTIONAL_H_INCLUDED */

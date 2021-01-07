@@ -31,6 +31,7 @@
 #include "RDSP_general_includes.h"
 #include "RDSP_controls.h"
 #include "RDSP_display.h"
+#include "RDSP_noise_reduction.h"
 #include "RDSP_convolutional.h"
 
 //************************************************************************
@@ -77,17 +78,27 @@ AudioConnection c2f11(biquad1, 0, FFT, 0);
 AudioConnection c2f22(biquad2, 0, FFT, 1);  
 
 // Convolutional path 
-AudioConnection a1(preProcessor, 0, Q_in_L, 0);
-AudioConnection a2(preProcessor, 1, Q_in_R, 0);
-AudioConnection a3(Q_out_L, 0, SDR, 0);
-AudioConnection a4(Q_out_R, 0, SDR, 1);
+//AudioConnection a1(preProcessor, 0, Q_in_L, 0);
+//AudioConnection a2(preProcessor, 1, Q_in_R, 0);
+//AudioConnection a3(Q_out_L, 0, SDR, 0);
+//AudioConnection a4(Q_out_R, 0, SDR, 1);
+
+AudioConnection a3(preProcessor, 0, SDR, 0);
+AudioConnection a4(preProcessor, 1, SDR, 1);
 
 // Audio FFT analisys
-AudioConnection c2f4a(SDR, 0, AudioFFT, 0);  
+//AudioConnection c2f4a(SDR, 0, AudioFFT, 0);  
 
 // Audio Output connection
-AudioConnection c5(SDR, 0, audio_out, 0);
-AudioConnection c6(SDR, 1, audio_out, 1);
+//AudioConnection c5(SDR, 0, audio_out, 0);
+//AudioConnection c6(SDR, 1, audio_out, 1);
+
+// Convolutional path 
+AudioConnection c5(SDR, 0, Q_in_L, 0);
+AudioConnection c6(SDR, 1, Q_in_R, 0);
+AudioConnection c6a(Q_out_L, 0, AudioFFT, 0);  
+AudioConnection c7(Q_out_L, 0, audio_out, 0);
+AudioConnection c8(Q_out_R, 0, audio_out, 1);
 
 //**************************************************************************
 // Timer management
@@ -191,15 +202,23 @@ void setup()
   //codec.autoVolumeEnable();// 
   codec.unmuteHeadphone();
   codec.unmuteLineout(); //unmute the audio output
-//  codec.adcHighPassFilterDisable();
-  codec.adcHighPassFilterEnable();
+  codec.adcHighPassFilterDisable();
+  //codec.adcHighPassFilterEnable();
   /* end Autovolume & special settings */ 
+
+  // Initialize only LMS noise reduction
+  Init_LMS_NR (15);
+  
   AudioInterrupts();
   delay(500);
   SDR.setMute(false);
-
+  
   // Initializzation Convolutional struct for future use
   doConvolutionalInitialize();
+
+  // For test only need additional tuning
+  reInitializeFilter(300, 4000);
+ 
   delay(500);
 }
 
@@ -211,6 +230,9 @@ void setup()
 
 void loop()
 {
+   // Execute convolutional processing block
+  doConvolutionalProcessing(nr_level, true, 300.0, 4000.0);
+  
   if (commands.check() == 1)
   {
     checkCmd();
@@ -242,7 +264,6 @@ void loop()
     }
   }
 
-  // Execute convolutional processing block
-  doConvolutionalProcessing(nr_level);
+ 
   
  }

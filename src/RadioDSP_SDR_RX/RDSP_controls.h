@@ -258,32 +258,32 @@ void setNRMode()
   if(nrndx==2)
   {
    SDR.disableALSfilter();
-   SDR.disableAGC();  
+   //SDR.disableAGC();  
    newNR= "DNR 1";
-   nr_level = 2;
+   nr_level = 20;
   }
 
   if(nrndx==3)
   {
    SDR.disableALSfilter();
-   SDR.disableAGC();  
+   //SDR.disableAGC();  
    newNR= "DNR 2";
-   nr_level = 4;
+   nr_level = 30;
   }
 
  if(nrndx==4)
   {
    SDR.disableALSfilter();
-   SDR.disableAGC();  
+   //SDR.disableAGC();  
    newNR= "DNR 3";
-   nr_level = 8;
+   nr_level = 40;
   }
   if(nrndx==5)
   {
    SDR.disableALSfilter();
-   SDR.disableAGC();  
+   //SDR.disableAGC();  
    newNR= "DNR 4";
-   nr_level = 16;
+   nr_level = 50;
   }
   showNRMode();
   delay(200);
