@@ -14,6 +14,7 @@
 #define RDSP_CONTROLS_H_INCLUDED
 
 #include "RDSP_general_includes.h"
+#include "RDSP_convolutional.h"
 #include "RDSP_display.h"
 
 extern Encoder   Position;
@@ -41,6 +42,12 @@ void MENU_displayMenuLevel() {
         MENU_SetButtons("SCOPE", "AGC");
         break;
       }
+    case L4_PBT_LH:
+      {
+        MENU_SetButtons("PBT L", "PBT H");
+        break;
+      }
+      
   }
 }
 
@@ -49,7 +56,7 @@ void MENU_displayMenuLevel() {
 //************************************************************************
 void MENU_nextMenuLevel()
 {
-  if ((iMenuLevel >= 1) && (iMenuLevel < 4)){
+  if ((iMenuLevel >= 1) && (iMenuLevel < 5)){
     iMenuLevel = iMenuLevel +1;
   }
   MENU_displayMenuLevel();
@@ -60,7 +67,7 @@ void MENU_nextMenuLevel()
 //************************************************************************
 void MENU_prevMenuLevel()
 {
-  if ((iMenuLevel > 1) && (iMenuLevel <= 4)){
+  if ((iMenuLevel > 1) && (iMenuLevel <= 5)){
     iMenuLevel = iMenuLevel -1;
   }
   MENU_displayMenuLevel();
@@ -556,6 +563,53 @@ void showFreq()
   Freq = vfoFreq; // update oldfreq
 }
 
+//************************************************************************
+//         Change PBT Filter settings
+//************************************************************************
+boolean checkPBT_Increase(){
+
+   if (iMenuLevel == L4_PBT_LH){
+          // Increase LOCUT
+      if (digitalRead(BUTTON_D3) == LOW){
+          dFLoCut = (dFLoCut + 50)<=MAX_LOW?(dFLoCut + 50):dFLoCut;
+          reInitializeFilter(dFLoCut, dFHiCut);
+          showPBT();
+          return true;
+      }
+      // Increase HICUT
+      else if (digitalRead(BUTTON_D6) == LOW){
+          dFHiCut = (dFHiCut + 50)<=MAX_HI?(dFHiCut + 50):dFHiCut;
+          reInitializeFilter(dFLoCut, dFHiCut);
+          showPBT();
+          return true;
+      }
+    }
+    return false;
+}
+
+boolean checkPBT_Decrease(){
+
+   if (iMenuLevel == L4_PBT_LH){
+        // Decrease LOCUT
+  if (digitalRead(BUTTON_D3) == LOW){
+      dFLoCut = (dFLoCut - 50)>MIN_LOW?(dFLoCut - 50):dFLoCut;
+      if (dFLoCut<0.0) dFLoCut=0.0;
+      reInitializeFilter(dFLoCut, dFHiCut); 
+      showPBT();
+      return true;
+  }
+
+        // Decrease HICUT
+  else  if (digitalRead(BUTTON_D6) == LOW){
+      dFHiCut = (dFHiCut - 50)>MIN_HI?(dFHiCut - 50):dFHiCut;
+      reInitializeFilter(dFLoCut, dFHiCut);
+      showPBT();
+      return true;
+  }
+    }
+
+    return false;
+}
 
 //************************************************************************
 //         Change Frequency method
@@ -573,20 +627,29 @@ void setFreq()
       {
         if (newPosition > oldPosition)
         {
-          vfoFreq = (Freq + Fstep);
-
-          if (vfoFreq >= topFreq)
-          {
-            vfoFreq = topFreq;
+          // if we are changing the PBT
+          boolean bChecked = checkPBT_Increase();
+          if (!bChecked){
+            // change freq
+            vfoFreq = (Freq + Fstep);
+            if (vfoFreq >= topFreq)
+            {
+              vfoFreq = topFreq;
+            }
           }
         }
 
         if (newPosition < oldPosition)
         {
-          vfoFreq = (Freq - Fstep);
-          if (vfoFreq <= bottomFreq)
-          {
-            vfoFreq = bottomFreq;
+          // if we are changing the PBT
+          boolean bChecked = checkPBT_Decrease();
+          if (!bChecked){
+            // change freq
+            vfoFreq = (Freq - Fstep);
+            if (vfoFreq <= bottomFreq)
+            {
+              vfoFreq = bottomFreq;
+            }
           }
         }
       }
@@ -654,6 +717,11 @@ void checkCmd()
             setScopeMode();
             break;
           }
+         case L4_PBT_LH:
+          {
+            // do nothing
+            break;
+          }  
       }
     } else if (digitalRead(BUTTON_D6) == LOW) {
       switch (iMenuLevel) {
@@ -672,6 +740,11 @@ void checkCmd()
             setAgc();
             break;
           }
+        case L4_PBT_LH:
+          {
+            // do nothing
+            break;
+          }    
       }
     }
   }

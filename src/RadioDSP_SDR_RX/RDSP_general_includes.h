@@ -56,6 +56,7 @@
 #define L1_MODE_TS   1
 #define L2_FLT_NR    2
 #define L3_SCOPE_AGC 3
+#define L4_PBT_LH    4
 //************************************************************************
 
 //************************************************************************
@@ -70,6 +71,19 @@ volatile uint32_t   Freq = 7055000;// previous frequency
 volatile uint32_t   Fstep = 0; // sets the tuning increment
 volatile uint32_t   vfoFreq = 7050000;
 uint32_t            TuningOffset;
+
+// LO-HI cut PBT
+double              dFLoCut  = 300.0;  // actual value
+double              dFHiCut = 4000.0;  // actual value
+// Variable Ranges
+#define             MIN_LOW 0.0
+#define             MAX_LOW 500.0
+#define             MIN_HI 600.0
+#define             MAX_HI 4000.0
+
+// Old Display values
+double              oldFLoCut  = 300.0;  // old value
+double              oldFHiCut = 4000.0;  // old value
 
 //*************************************************************************
 // DISPLAY CONTROLS

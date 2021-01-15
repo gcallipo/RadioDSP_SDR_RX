@@ -218,6 +218,7 @@ void setup()
 
   // For test only need additional tuning
   reInitializeFilter(300, 4000);
+  showPBT();
  
   delay(500);
 }

@@ -123,6 +123,37 @@ void showNRMode()
 }
 
 //************************************************************************
+//      Display NR settings on screen
+//************************************************************************
+void showPBT()
+{
+    tft.setFont(Arial_10_Bold);
+    tft.setCursor(270, 120 );
+    tft.setTextColor(ILI9341_WHITE);
+    tft.print("PBT");
+
+    tft.setFont(Arial_10_Bold);
+    tft.setTextColor(ILI9341_BLACK);
+    tft.setCursor(270, 135);
+    tft.print((int)oldFLoCut);
+    tft.setCursor(270, 135 );
+    tft.setTextColor(ILI9341_WHITE);
+    tft.print((int)dFLoCut);
+    oldFLoCut = dFLoCut;
+
+    tft.setFont(Arial_10_Bold);
+    tft.setTextColor(ILI9341_BLACK);
+    tft.setCursor(270, 150);
+    tft.print((int)oldFHiCut);
+    tft.setCursor(270, 150);
+    tft.setTextColor(ILI9341_WHITE);
+    tft.print((int)dFHiCut);
+    oldFHiCut = dFHiCut;
+}
+
+
+
+//************************************************************************
 //      Display AGC settings on screen
 //************************************************************************
 void showAgcMode()
