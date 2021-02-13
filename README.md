@@ -3,7 +3,7 @@ This project define a simple shortwave all mode and general coverage Software De
 
 Test reception videos
 
-Video 1: RX 40 mt SSB Listening and test Filters TWIN PBT
+Video 1: RX 40 mt SSB Listening
 https://youtu.be/ZIjYX50kgN4
 
 Video 2: Listening SSB and testing Filters and NR
