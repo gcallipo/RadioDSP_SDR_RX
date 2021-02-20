@@ -56,7 +56,7 @@ void MENU_displayMenuLevel() {
 //************************************************************************
 void MENU_nextMenuLevel()
 {
-  if ((iMenuLevel >= 1) && (iMenuLevel < 5)){
+  if ((iMenuLevel >= 1) && (iMenuLevel < 4)){
     iMenuLevel = iMenuLevel +1;
   }
   MENU_displayMenuLevel();
@@ -67,7 +67,7 @@ void MENU_nextMenuLevel()
 //************************************************************************
 void MENU_prevMenuLevel()
 {
-  if ((iMenuLevel > 1) && (iMenuLevel <= 5)){
+  if ((iMenuLevel > 1) && (iMenuLevel <= 4)){
     iMenuLevel = iMenuLevel -1;
   }
   MENU_displayMenuLevel();
@@ -357,10 +357,10 @@ void tuningMode()
   if(mndx==2)
   {
    newMode="USB";
-   SDR.setAudioFilter(audio2700);
+   SDR.setAudioFilter(audio2100);
    TuningOffset = SDR.setDemodMode(USBmode); 
-   newFilter= "2.7 kHz";
-   fndx=2;
+   newFilter= "2.1 kHz";
+   fndx=1;
   }
 
   if(mndx==3)
@@ -443,7 +443,7 @@ void initVfo()
 //      Send actual frequency value to SI5351 VFO
 //************************************************************************
 void sendFreq()
-{ delay(50);
+{ //delay(10);
   si5351.set_freq((vfoFreq - TuningOffset) * 400ULL, SI5351_CLK0); // generating 4 x frequency ... set 400ULL to 100ULL for 1x frequency
 }
 

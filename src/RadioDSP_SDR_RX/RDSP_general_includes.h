@@ -77,8 +77,8 @@ double              dFLoCut  = 300.0;  // actual value
 double              dFHiCut = 4000.0;  // actual value
 // Variable Ranges
 #define             MIN_LOW 0.0
-#define             MAX_LOW 500.0
-#define             MIN_HI 600.0
+#define             MAX_LOW 700.0
+#define             MIN_HI 800.0
 #define             MAX_HI 4000.0
 
 // Old Display values
