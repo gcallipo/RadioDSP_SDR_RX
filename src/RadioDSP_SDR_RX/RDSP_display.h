@@ -299,19 +299,22 @@ void Update_Panadapter(int iDisplayMode)
         if (WaterfallData[row][col] >= low + 75)
           tft.drawPixel(2 + (col * 2), POSITION_SPECTRUM + row, ILI9341_RED);
   
-        else if ((WaterfallData[row][col] >= low + 60) && (WaterfallData[row][col] < low + 75))
+        else if ((WaterfallData[row][col] >= low + 50) && (WaterfallData[row][col] < low + 75))
           tft.drawPixel(2 + (col * 2), POSITION_SPECTRUM + row, ILI9341_MAGENTA);
           
-        else if ((WaterfallData[row][col] >= low + 45) && (WaterfallData[row][col] < low + 60))
+        else if ((WaterfallData[row][col] >= low + 40) && (WaterfallData[row][col] < low + 50))
           tft.drawPixel(2 + (col * 2), POSITION_SPECTRUM + row, ILI9341_ORANGE);  
   
-        else if ((WaterfallData[row][col] >= low + 30) && (WaterfallData[row][col] < low + 45))
+        else if ((WaterfallData[row][col] >= low + 25) && (WaterfallData[row][col] < low + 40))
           tft.drawPixel(2 + (col * 2), POSITION_SPECTRUM + row, ILI9341_YELLOW);
   
-        else if ((WaterfallData[row][col] >= low + 20) && (WaterfallData[row][col] < low + 30))
+        else if ((WaterfallData[row][col] >= low + 15) && (WaterfallData[row][col] < low + 25))
           tft.drawPixel(2 + (col * 2), POSITION_SPECTRUM + row, ILI9341_BLUE);
-  
-        else if (WaterfallData[row][col] < low + 20)
+
+        else if ((WaterfallData[row][col] >= low + 5) && (WaterfallData[row][col] < low + 15))
+          tft.drawPixel(2 + (col * 2), POSITION_SPECTRUM + row, ILI9341_NAVY);
+          
+        else if (WaterfallData[row][col] < low + 5)
           tft.drawPixel(2 + (col * 2), POSITION_SPECTRUM + row, ILI9341_BLACK);
      }
   

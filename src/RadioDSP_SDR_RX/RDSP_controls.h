@@ -344,23 +344,23 @@ void tuningMode()
   if(mndx==1)
   {
    newMode="CW";
-   SDR.setAudioFilter(audio2700);
+   SDR.setAudioFilter(audio2100);
    if (vfoFreq > 10000000){
       TuningOffset = SDR.setDemodMode(CW_USBmode); 
     }else{
       TuningOffset = SDR.setDemodMode(CW_LSBmode); 
     }
-   newFilter= "2.7 kHz";
+   newFilter= "2.1 kHz";
    fndx=2;
   }
 
   if(mndx==2)
   {
    newMode="USB";
-   SDR.setAudioFilter(audio2100);
+   SDR.setAudioFilter(audio2700);
    TuningOffset = SDR.setDemodMode(USBmode); 
-   newFilter= "2.1 kHz";
-   fndx=1;
+   newFilter= "2.7 kHz";
+   fndx=2;
   }
 
   if(mndx==3)

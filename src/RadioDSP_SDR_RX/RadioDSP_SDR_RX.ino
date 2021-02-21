@@ -2,8 +2,8 @@
   ******************************************************************************
   * @file    RadioDSP_SDR_RX.c
   * @author  Giuseppe Callipo - IK8YFW - ik8yfw@libero.it
-  * @version V1.0.4
-  * @date    20-02-2021
+  * @version V1.0.5
+  * @date    21-02-2021
   * @brief   Main routine file
   *
   ******************************************************************************
@@ -135,10 +135,10 @@ void setup()
   SDR.setIQgainBalance(1.020);            // This was foumd by experimentation
  
   SDR.enableAudioFilter();
-  SDR.setAudioFilter(audio2100);
+  SDR.setAudioFilter(audio2700);
   TuningOffset = SDR.setDemodMode(LSBmode);  
-  newFilter= "2.1 kHz";
-  fndx=1;
+  newFilter= "2.7 kHz";
+  fndx=2;
   showFilter();
 
   FFT.windowFunction(AudioWindowHanning256);
@@ -152,21 +152,21 @@ void setup()
   AudioNoInterrupts();
 
   // Filter for DC cleaning before FFT Panadapter
-  biquad1.setHighpass(0,300,0.4);
-  biquad2.setHighpass(0,300,0.4);
+  biquad1.setHighpass(0,500,0.5);
+  biquad2.setHighpass(0,500,0.5);
   
   // Place the enable as first operation ...
   codec.enable();
   codec.inputSelect(AUDIO_INPUT_LINEIN);
   codec.volume(1.0);
-  codec.lineInLevel(10);  // Set codec input voltage level to most sensitive 8
-  codec.lineOutLevel(13); // Set codec output voltage level to most sensitive 10
+  codec.lineInLevel(8);  // Set codec input voltage level to most sensitive 8
+  codec.lineOutLevel(0); // Set codec output voltage level to most sensitive 10
   
   // Final audio setting
   codec.unmuteHeadphone();
-  codec.unmuteLineout(); //unmute the audio output
-  codec.adcHighPassFilterEnable();
-  //codec.adcHighPassFilterDisable();
+  //codec.unmuteLineout(); //unmute the audio output
+  //codec.adcHighPassFilterEnable();
+  codec.adcHighPassFilterDisable();
 
   // Initialize only LMS noise reduction
   Init_LMS_NR (15);
